@@ -12,7 +12,7 @@ __author__ = 'Rabbi'
 
 
 class SaraivaScrapper(QThread):
-    notifyAmazon = pyqtSignal(object)
+    notifySaraiva = pyqtSignal(object)
 
     def __init__(self, urlList, category):
         QThread.__init__(self)
@@ -24,9 +24,7 @@ class SaraivaScrapper(QThread):
         self.category = category
         self.csvWriter = Csv(category + '.csv')
         csvDataHeader = ['Link', 'Name', 'Subtitle', 'Price', 'Synopsis and Characteristics', 'Picture']
-        if csvDataHeader not in self.dupCsvRows:
-            self.dupCsvRows.append(csvDataHeader)
-            self.csvWriter.writeCsvRow(csvDataHeader)
+        self.csvWriter.writeCsvRow(csvDataHeader)
         self.mainUrl = 'http://busca.livrariasaraiva.com.br'
         self.scrapUrl = None
         self.dbHelper = DbHelper('saraiva.db')
@@ -40,23 +38,17 @@ class SaraivaScrapper(QThread):
                     if len(url) > 0:
                         url = self.regex.replaceData('(?i)\r', '', url)
                         url = self.regex.replaceData('(?i)\n', '', url)
-                        self.notifyAmazon.emit('<font color=green><b>Saraiva Main URL: %s</b></font>' % url)
-                        imUrl = None
-                        retry = 0
-                        while imUrl is None and retry < 4:
-                            imUrl = self.reformatUrl(url)
-                            retry += 1
-                        if imUrl is None:
-                            imUrl = url
+                        self.notifySaraiva.emit('<font color=green><b>Saraiva Main URL: %s</b></font>' % url)
+                        paginationUrl, self.maxRecords = self.reformatUrl(url)
+                        print 'Max recored', self.maxRecords
                         self.total = 0
-                        print 'URL: ' + str(imUrl)
-                        sortList = ['relevance-fs-browse-rank', 'price', '-price', 'reviewrank_authority',
-                                    'date-desc-rank']
+                        print 'URL: ' + str(paginationUrl)
+                        sortList = ['&isort=globalpop', '&isort=best', '&isort=title', '&isort=title+rev',
+                                    '&isort=price+rev',
+                                    '&isort=price', '&isort=date+rev']
                         for sort in sortList:
-                            self.scrapReformatData(imUrl, sort)
-                        self.notifyAmazon.emit(
-                            '<font color=red><b>Finish data for Amazon Main URL: %s</b></font><br /><br />' % url)
-            self.notifyAmazon.emit('<font color=red><b>Amazon Data Scraping finished.</b></font>')
+                            self.scrapReformatData(paginationUrl, sort)
+            self.notifySaraiva.emit('<font color=red><b>Saraiva Data Scraping finished.</b></font>')
         except Exception, x:
             print x.message
             self.logger.error('Exception at run: ', x.message)
@@ -64,55 +56,60 @@ class SaraivaScrapper(QThread):
                 self.run(retry + 1)
 
     def reformatUrl(self, url):
+        detailUrl = url
+        maxData = 60
         try:
             print 'URL when reformat: ', url
             data = self.spider.fetchData(url)
-
             if data and len(data) > 0:
                 data = self.regex.reduceNewLine(data)
                 data = self.regex.reduceBlankSpace(data)
                 soup = BeautifulSoup(data)
-                imageLinkChunk = soup.find('div', class_='sli_makeview sli_font')
-                if imageLinkChunk is not None and imageLinkChunk.text is not None and imageLinkChunk.text.strip().lower() == 'Image'.lower():
-                    del soup
-                    return url
+                detailUrl = url
+                maxData = 60
+                detailLinkChunk = soup.find('div', class_='sli_makeview sli_font')
+                if detailLinkChunk is not None and detailLinkChunk.find('a') is not None:
+                    detailUrl = detailLinkChunk.find('a').get('href')
+                    detailUrl = self.regex.replaceData('(?i)view=grid', 'view=list', detailUrl)
+                    detailUrl = self.regex.replaceData('(?i)&srt=\d+', '', detailUrl)
+                    print detailUrl
+                    detailUrl = self.regex.replaceData('(?i)&isort=[a-zA-Z]+', '', detailUrl)
+                    print detailUrl
+                    detailUrl += '&cnt=60'
 
-                imageLink = [x.a.get('href') for x in soup.find_all('span', {'class': 'iltgl2'}) if x.a is not None]
-                if imageLink is not None and len(imageLink) > 0 and imageLink[0] is not None and len(imageLink) > 0:
-                    imageLink = self.regex.replaceData('(?i)&amp;', '&', imageLink[0])
-                    print 'Image URL: ' + self.mainUrl + imageLink
-                    self.logger.debug('Image URL: ' + self.mainUrl + imageLink)
-                    return self.mainUrl + imageLink
+                if soup.find('span', class_='sli_ultima').find('a') is not None:
+                    lastLink = soup.find('span', class_='sli_ultima').find('a').get('href')
+                    print 'Last link: ', lastLink
+                    maxData = self.regex.getSearchedData('(?i)(\d+)$', lastLink)
+                    print 'Max data: ', maxData
+                del soup
+                return detailUrl, maxData
         except Exception, x:
             print x
             self.logger.error('Exception at reformat url: ', x.message)
-        return None
+        return detailUrl, maxData
 
-    def scrapReformatData(self, url, sort='relevance-fs-browse-rank', page=1, retry=0):
+    def scrapReformatData(self, url, sort='', page=0, retry=0):
         try:
-            mainUrl = url + "&page=" + str(page) + "&sort=" + sort
+            # mainUrl = url + "&srt=" + str(page * 60) + sort
+            mainUrl = url + "&srt=" + str(page * 60) + sort
             print 'Main URL: ' + mainUrl
-            self.notifyAmazon.emit('<font color=green><b>Amazon URL: %s</b></font>' % mainUrl)
+            self.notifySaraiva.emit('<font color=green><b>Saraiva URL: %s</b></font>' % mainUrl)
             data = self.spider.fetchData(mainUrl)
             if data and len(data) > 0:
                 data = self.regex.reduceNewLine(data)
                 data = self.regex.reduceBlankSpace(data)
-                if self.scrapData(data) is False and retry < 4:
-                    self.notifyAmazon.emit(
-                        '<Font color=green><b>Retry... as it gets less data than expected.</b></font>')
-                    del data
-                    return self.scrapReformatData(url, sort, page, retry + 1)
-                else:
-                    print 'Problem scraping data'
+                # TODO
+                # self.scrapData(data)
 
-                soup = BeautifulSoup(data)
-                if soup.find('a', id='pagnNextLink') is not None:
-                    del soup
+                if int((page + 1) * 60) < int(self.maxRecords):
                     del data
                     return self.scrapReformatData(url, sort, page + 1, retry=0)
         except Exception, x:
             print x.message
             self.logger.error('Exception at scrap reformat data: ', x.message)
+            if retry < 5:
+                self.scrapReformatData(url, sort, page, retry + 1)
 
     def scrapData(self, data):
         try:
@@ -134,7 +131,7 @@ class SaraivaScrapper(QThread):
                         self.scrapDataFromResultPage(result)
                     else:
                         print 'Duplicate product found [%s]' % result.get('name')
-                        self.notifyAmazon.emit(
+                        self.notifySaraiva.emit(
                             '<font color=red><b>Duplicate product: [%s]</b></font>' % result.get('name'))
                 del soup
                 del data
@@ -195,7 +192,7 @@ class SaraivaScrapper(QThread):
     def scrapProductDetail(self, url, title, subTitle, price, productImage):
         try:
             print 'Product URL: ', url
-            self.notifyAmazon.emit('<font color=green><b>Product Details URL [%s].</b></font>' % url)
+            self.notifySaraiva.emit('<font color=green><b>Product Details URL [%s].</b></font>' % url)
             data = self.spider.fetchData(url)
             if data and len(data) > 0:
                 data = self.regex.reduceNewLine(data)
@@ -261,7 +258,7 @@ class SaraivaScrapper(QThread):
                 images = self.scrapImages(data)
                 if productImage is not None and len(productImage) > 0:
                     productImage = self.regex.getSearchedData(
-                        '(?i)(http://ecx.images-amazon.com/images/I/[^\.]*)\._.*?$', productImage)
+                        '(?i)(http://ecx.images-Saraiva.com/images/I/[^\.]*)\._.*?$', productImage)
                     if productImage and len(productImage) > 0:
                         productImage += '.jpg'
                         images.append(productImage)
@@ -272,7 +269,7 @@ class SaraivaScrapper(QThread):
                 self.csvWriter.writeCsvRow(csvData)
                 print csvData
                 self.total += 1
-                self.notifyAmazon.emit('<font color=black><b>All Products Scraped: [%s].</b></font>' % str(self.total))
+                self.notifySaraiva.emit('<font color=black><b>All Products Scraped: [%s].</b></font>' % str(self.total))
                 del data
                 del soup
         except Exception, x:
@@ -302,7 +299,7 @@ class SaraivaScrapper(QThread):
                 for imageChunk in soup.find_all('li', class_='a-spacing-small item'):
                     if imageChunk and len(imageChunk) > 0:
                         image = self.regex.getSearchedData(
-                            '(?i)(http://ecx.images-amazon.com/images/I/[^\.]*)\._.*?$',
+                            '(?i)(http://ecx.images-Saraiva.com/images/I/[^\.]*)\._.*?$',
                             imageChunk.find('img').get('src'))
                         if image and len(image) > 0:
                             image += '.jpg'
@@ -313,7 +310,7 @@ class SaraivaScrapper(QThread):
                 if imageChunks and len(imageChunks) > 0:
                     for imageChunk in imageChunks:
                         imageChunk = self.regex.getSearchedData('(?i)\((.*?)\)', imageChunk)
-                        image = self.regex.getSearchedData('(?i)(http://ecx.images-amazon.com/images/I/[^.]*)\._.*?$'
+                        image = self.regex.getSearchedData('(?i)(http://ecx.images-Saraiva.com/images/I/[^.]*)\._.*?$'
                             , imageChunk)
                         if image and len(image) > 0:
                             image += '.jpg'
@@ -327,7 +324,7 @@ class SaraivaScrapper(QThread):
                     for imageChunk in imageChunks:
                         if imageChunk and len(imageChunk) > 0:
                             image = self.regex.getSearchedData(
-                                '(?i)(http://ecx.images-amazon.com/images/I/[^.]*)\._.*?$', imageChunk)
+                                '(?i)(http://ecx.images-Saraiva.com/images/I/[^.]*)\._.*?$', imageChunk)
                             if image and len(image) > 0:
                                 image += '.jpg'
                                 if image not in images:
@@ -339,7 +336,7 @@ class SaraivaScrapper(QThread):
                     '(?i)<div id="main-image-wrapper-outer">(.*?)<div id="main-image-unavailable">', data)
                 if imageChunk and len(imageChunk) > 0:
                     mainImage = self.regex.getSearchedData('(?i)<img id="main-image" src="([^"]*)"', imageChunk)
-                    mainImage = self.regex.getSearchedData('(?i)(http://ecx.images-amazon.com/images/I/[^.]*)\._.*?$',
+                    mainImage = self.regex.getSearchedData('(?i)(http://ecx.images-Saraiva.com/images/I/[^.]*)\._.*?$',
                                                            mainImage)
 
                     if mainImage and len(mainImage) > 0:
@@ -350,7 +347,7 @@ class SaraivaScrapper(QThread):
                     if otherImages and len(otherImages) > 0:
                         for otherImage in otherImages:
                             otherImage = self.regex.getSearchedData(
-                                '(?i)(http://ecx.images-amazon.com/images/I/[^.]*)\._.*?$', otherImage)
+                                '(?i)(http://ecx.images-Saraiva.com/images/I/[^.]*)\._.*?$', otherImage)
                             otherImage += '.jpg'
                             if otherImage not in images:
                                 images.append(otherImage)
@@ -360,7 +357,7 @@ class SaraivaScrapper(QThread):
                     '(?i)<h2 class="quorus-product-name">[^<]*</h2> <img src="([^"]*)"',
                     data)
                 if imageChunk and len(imageChunk) > 0:
-                    image = self.regex.getSearchedData('(?i)(http://ecx.images-amazon.com/images/I/[^.]*)\._.*?$',
+                    image = self.regex.getSearchedData('(?i)(http://ecx.images-Saraiva.com/images/I/[^.]*)\._.*?$',
                                                        imageChunk)
                     if image and len(image) > 0:
                         image += '.jpg'
@@ -372,7 +369,7 @@ class SaraivaScrapper(QThread):
                 imageChunks = self.regex.getSearchedData(
                     '(?i)<div customfunctionname="[^"]*" class="[^"]*" id="thumbs-image"[^>]*?>(.*?)</div>', data)
                 if imageChunks and len(imageChunks) > 0:
-                    images = self.regex.getAllSearchedData('(?i)src="(http://ecx.images-amazon.com/images/I/[^"]*)"'
+                    images = self.regex.getAllSearchedData('(?i)src="(http://ecx.images-Saraiva.com/images/I/[^"]*)"'
                         , imageChunks)
                     for image in images:
                         if image not in images:
@@ -382,7 +379,7 @@ class SaraivaScrapper(QThread):
                     '(?i)<div id="imageBlockContainer"[^>]*>(.*?)</div> </div></div>',
                     data)
                 if imageChunks and len(imageChunks) > 0:
-                    images = self.regex.getAllSearchedData('(?i)src="(http://ecx.images-amazon.com/images/I/[^"]*)"'
+                    images = self.regex.getAllSearchedData('(?i)src="(http://ecx.images-Saraiva.com/images/I/[^"]*)"'
                         , imageChunks)
                     for image in images:
                         if image not in images:
