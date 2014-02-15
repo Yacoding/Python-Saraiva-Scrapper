@@ -19,6 +19,13 @@ class Form(QMainWindow):
         self.btnBrowse = QPushButton('&Browse')
         self.btnBrowse.clicked.connect(self.urlListSelected)
 
+        self.labelHtmlFile = QLabel('<b>Select File with html tag: </b>')
+        self.btnHtmlBrowse = QPushButton('&Browse')
+        self.btnHtmlBrowse.clicked.connect(self.htmlTagSelected)
+
+        self.labelReplaceTag = QLabel('<b>Tag to replace: </b>')
+        self.inputReplaceTag = QLineEdit()
+
         self.labelUrl = QLabel('<b>URL: </b>')
         self.inputUrl = QLineEdit()
 
@@ -31,11 +38,15 @@ class Form(QMainWindow):
         layout = QGridLayout()
         layout.addWidget(self.labelFile, 0, 0, Qt.AlignRight)
         layout.addWidget(self.btnBrowse, 0, 1, Qt.AlignLeft)
-        layout.addWidget(self.labelUrl, 1, 0, Qt.AlignRight)
-        layout.addWidget(self.inputUrl, 1, 1)
-        layout.addWidget(self.labelCategory, 2, 0, Qt.AlignRight)
-        layout.addWidget(self.inputCategory, 2, 1)
-        layout.addWidget(self.btnScrap, 3, 1, Qt.AlignLeft)
+        layout.addWidget(self.labelHtmlFile, 1, 0, Qt.AlignRight)
+        layout.addWidget(self.btnHtmlBrowse, 1, 1, Qt.AlignLeft)
+        layout.addWidget(self.labelReplaceTag, 2, 0, Qt.AlignRight)
+        layout.addWidget(self.inputReplaceTag, 2, 1, Qt.AlignLeft)
+        layout.addWidget(self.labelUrl, 3, 0, Qt.AlignRight)
+        layout.addWidget(self.inputUrl, 3, 1)
+        layout.addWidget(self.labelCategory, 4, 0, Qt.AlignRight)
+        layout.addWidget(self.inputCategory, 4, 1)
+        layout.addWidget(self.btnScrap, 5, 1, Qt.AlignLeft)
 
         self.browser = QTextBrowser()
         layoutMain = QVBoxLayout()
@@ -46,15 +57,16 @@ class Form(QMainWindow):
 
         self.setCentralWidget(widget)
         screen = QDesktopWidget().screenGeometry()
-        self.resize(screen.width() - 250, screen.height() - 250)
+        self.resize(screen.width() - 200, screen.height() - 200)
         self.setWindowTitle('Saraiva Scraper.')
 
     def scrapAction(self):
         if len(str(self.inputCategory.text())) > 0:
             self.urlList.append(str(self.inputUrl.text()))
-        self.saraiva = SaraivaScrapper(self.urlList, str(self.inputCategory.text()))
+        self.saraiva = SaraivaScrapper(self.urlList, str(self.inputCategory.text()), str(self.htmlTag),
+                                       str(self.inputReplaceTag.text()))
         self.saraiva.start()
-        self.saraiva.notifyAmazon.connect(self.notifyInfo)
+        self.saraiva.notifySaraiva.connect(self.notifyInfo)
 
     def urlListSelected(self):
         self.fileName = QtGui.QFileDialog.getOpenFileName(self, "Select Text File", QDir.homePath() + "/Desktop")
@@ -65,13 +77,22 @@ class Form(QMainWindow):
             for line in self.lists:
                 self.urlList.append(line)
 
+    def htmlTagSelected(self):
+        try:
+            self.htmlFileName = QtGui.QFileDialog.getOpenFileName(self, "Select Text File",
+                                                                  QDir.homePath() + "/Desktop")
+            f = open(self.htmlFileName, 'rb')
+            self.htmlTag = f.read()
+            f.close()
+        except Exception, x:
+            print x
 
     def notifyInfo(self, data):
         try:
             self.browser.document().setMaximumBlockCount(1000)
             self.browser.append(data)
         except Exception, x:
-            print x.message
+            print x
 
 
 class MainView:

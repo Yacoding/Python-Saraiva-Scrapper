@@ -66,7 +66,6 @@ class DbHelper:
             cursor = connection.cursor()
             cursor.execute('SELECT COUNT(*) FROM %s' % tableName)
             count = cursor.fetchone()[0]
-            print count
             cursor.close()
             return count
         except Exception, x:

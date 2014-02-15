@@ -1,4 +1,12 @@
+## Test URLS
+http://busca.livrariasaraiva.com.br/nav/area/livros_administracao/categoria/livros/0
+http://busca.livrariasaraiva.com.br/nav/area/filmes_blurayfilmes/categoria/filmes/0
 
+
+### OThers
 
 http://busca.livrariasaraiva.com.br/search?p=Q&lbc=saraiva&uid=868301509&ts=custom&w=*&method=and&view=list&af=cat2%3alivros_administracao%20cat1%3alivros&learningnav=1
 http://busca.livrariasaraiva.com.br/search?p=Q&lbc=saraiva&uid=868301509&ts=custom&w=*&method=and&view=list&af=cat2%3alivros_administracao%20cat1%3alivros&learningnav=1&isort=best
+
+http://busca.livrariasaraiva.com.br/search?p=Q&srid=S11-USCDR01&lbc=saraiva&ts=custom&w=*&uid=868301509&method=and&af=cat2%3alivros_administracao%20cat1%3alivros&isort=globalpop&view=list&srt=0
+http://busca.livrariasaraiva.com.br/search?p=Q&lbc=saraiva&uid=868301509&ts=custom&w=*&isort=globalpop&method=and&view=list&af=cat2%3alivros_administracao%20cat1%3alivros&cnt=60

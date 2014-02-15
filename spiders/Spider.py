@@ -44,15 +44,11 @@ class Spider:
         url='' Ex. http://www.example.com, https://www.example.com
         parameters={} Ex. {'user': 'user', 'pass': 'pass'}
         """
-        host = ('Host', 'www.amazon.com')
+        host = ('Host', 'www.vizury.com')
         conn = ('Connection', 'keep-alive')
-        enc = ('Accept-Encoding', 'gzip, deflate')
         ac = ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
-        ln = ('Accept-Language', 'en-us,en;q=0.5')
 
-        myheaders = [config.USER_AGENT, host, conn, ac, ln, enc]
-#        if self.mycookie is not None:
-#            myheaders.append(('Cookie', self.mycookie))
+        myheaders = [config.USER_AGENT, host, conn, ac]
         if self.opener is None:
             self.opener = self.createOpener(myheaders)
             urllib2.install_opener(self.opener)
@@ -60,8 +56,7 @@ class Spider:
             if parameters is None:
                 response = self.opener.open(url, timeout=config.TIMEOUT)
                 self.mycookie = response.headers.get('Set-Cookie')
-                buf = StringIO(response.read())
-                data2 = gzip.GzipFile('', 'r', 0, buf).read()
+                data2 = response.read()
                 response.close()
                 del response
                 gc.collect()
