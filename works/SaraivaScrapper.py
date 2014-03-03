@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import re
 from PyQt4.QtCore import QThread, pyqtSignal
 from db.DbHelper import DbHelper
@@ -22,7 +23,10 @@ class SaraivaScrapper(QThread):
         self.utils = Utils()
         self.urlList = urlList
         self.category = category
-        self.htmlTag = htmlTag
+        self.htmlTag = self.regex.replaceData('\r+', '', htmlTag)
+        self.htmlTag = self.regex.replaceData('\n+', ' ', self.htmlTag)
+        self.htmlTag = self.regex.replaceData('\s+', ' ', self.htmlTag)
+        self.htmlTag = self.regex.replaceData(r'\"+', '\"', self.htmlTag)
         self.replaceTag = replaceTag
         self.csvWriter = Csv(category + '.csv')
         csvDataHeader = ['Link', 'Name', 'Subtitle', 'Price', 'Synopsis and Characteristics', 'Picture']
@@ -139,8 +143,9 @@ class SaraivaScrapper(QThread):
                             name = titleChunk.find('span', class_='entry-title').text
                         if content.find('h2', class_='titulo_autor') is not None:
                             subTitle = content.find('h2', class_='titulo_autor').text
-                    if result.find('div', class_='sli_list_right').find('h3', class_='preco_por') is not None:
-                        price = result.find('div', class_='sli_list_right').find('h3', class_='preco_por').text
+                        ## precoDe
+                    if result.find('div', class_='sli_list_right').find('font', class_='precoDe') is not None:
+                        price = result.find('div', class_='sli_list_right').find('font', class_='precoDe').text
                         price = self.regex.getSearchedData(u'(?i)\$(.*?)$', price).strip()
 
                     ## Now scrap product detail and write to csv
@@ -160,13 +165,19 @@ class SaraivaScrapper(QThread):
                 data = self.regex.reduceNewLine(data)
                 data = self.regex.reduceBlankSpace(data)
                 soup = BeautifulSoup(data, from_encoding='utf-8')
-                productSpec = ''
+                productSpec = '<p>'
                 if soup.find('div', id='PassosConteudo') is not None:
                     productSpecs = soup.find('div', id='PassosConteudo').find_all('div', id=re.compile('(?i)aba\d+'))
                     for spec in productSpecs:
-                        productSpec += spec.text + '\n'
-                    productSpec = self.regex.replaceData(u'(?i)%s' % self.replaceTag, productSpec.encode('utf-8'),
-                                                         self.htmlTag.encode('utf-8'))
+                        if spec.contents is not None:
+                            for content in spec.contents:
+                                pSpec = self.regex.replaceData(r'(?i)<font[^>]*?>', '<b>', unicode(content))
+                                pSpec = self.regex.replaceData(r'(?i)</font>', '</b>', pSpec)
+                                productSpec += pSpec
+                        productSpec = self.regex.replaceData(r'(?i)<br\s*/>\s*<br\s*/>', '<br />', productSpec)
+                        productSpec += '<br /><br />'
+                    productSpec += '</p>'
+                    productSpec = self.regex.replaceData('(?i)%s' % self.replaceTag, productSpec, self.htmlTag)
 
                 csvData = [link, name, subTitle, price, productSpec, image]
                 self.csvWriter.writeCsvRow(csvData)
@@ -181,6 +192,7 @@ class SaraivaScrapper(QThread):
                 del soup
         except Exception, x:
             print 'Exception when scrap product detail: ', x.message
+            print x
             self.logger.error('Exception at scrap product detail: ', x.message)
             if retry < 5:
                 self.notifySaraiva.emit(
