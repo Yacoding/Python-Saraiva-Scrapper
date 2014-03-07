@@ -144,8 +144,12 @@ class SaraivaScrapper(QThread):
                         if content.find('h2', class_='titulo_autor') is not None:
                             subTitle = content.find('h2', class_='titulo_autor').text
                         ## precoDe
-                    if result.find('div', class_='sli_list_right').find('font', class_='precoDe') is not None:
-                        price = result.find('div', class_='sli_list_right').find('font', class_='precoDe').text
+                    # if result.find('div', class_='sli_list_right').find('font', class_='precoDe') is not None:
+                    #     price = result.find('div', class_='sli_list_right').find('font', class_='precoDe').text
+                    #     price = self.regex.getSearchedData(u'(?i)\$(.*?)$', price).strip()
+                    ## precoPor
+                    if result.find('div', class_='sli_list_right').find('font', class_='precoPor') is not None:
+                        price = result.find('div', class_='sli_list_right').find('font', class_='precoPor').text
                         price = self.regex.getSearchedData(u'(?i)\$(.*?)$', price).strip()
 
                     ## Now scrap product detail and write to csv
@@ -165,21 +169,32 @@ class SaraivaScrapper(QThread):
                 data = self.regex.reduceNewLine(data)
                 data = self.regex.reduceBlankSpace(data)
                 soup = BeautifulSoup(data, from_encoding='utf-8')
-                productSpec = '<p>'
+
+                productSpecFull = ''
                 if soup.find('div', id='PassosConteudo') is not None:
+                    i = 0
                     productSpecs = soup.find('div', id='PassosConteudo').find_all('div', id=re.compile('(?i)aba\d+'))
                     for spec in productSpecs:
+                        productSpec = ''
                         if spec.contents is not None:
                             for content in spec.contents:
                                 pSpec = self.regex.replaceData(r'(?i)<font[^>]*?>', '<b>', unicode(content))
                                 pSpec = self.regex.replaceData(r'(?i)</font>', '</b>', pSpec)
                                 productSpec += pSpec
-                        productSpec = self.regex.replaceData(r'(?i)<br\s*/>\s*<br\s*/>', '<br />', productSpec)
-                        productSpec += '<br /><br />'
-                    productSpec += '</p>'
-                    productSpec = self.regex.replaceData('(?i)%s' % self.replaceTag, productSpec, self.htmlTag)
+                            productSpec = self.regex.replaceData(r'(?i)(?:<br\s*?/>\s*)+', '<br />', productSpec)
+                            productSpec = self.regex.replaceData(r'(?i)(?:<br>\s*?)+', '<br />', productSpec)
+                            productSpec = self.regex.replaceData(r'(?i)(?:<br>)+', '<br />', productSpec)
+                            productSpec = self.regex.replaceData(r'(?i)(?:</br>\s*?)+', '<br />', productSpec)
+                            productSpec = self.regex.replaceData(r'(?i)(?:</br>)+', '<br />', productSpec)
+                            productSpec = self.regex.replaceData(r'(?i)(?:<br />\s*?)+', '<br />', productSpec)
+                        productSpecFull += productSpec
+                        i += 1
+                        if i is not len(productSpecs):
+                            productSpecFull += '<br />'
+                    print productSpecFull
+                    productSpecFull = self.regex.replaceData('(?i)%s' % self.replaceTag, productSpecFull.strip(), self.htmlTag)
 
-                csvData = [link, name, subTitle, price, productSpec, image]
+                csvData = [link, name, subTitle, price, productSpecFull, image]
                 self.csvWriter.writeCsvRow(csvData)
                 print csvData
                 self.logger.debug(csvData)
